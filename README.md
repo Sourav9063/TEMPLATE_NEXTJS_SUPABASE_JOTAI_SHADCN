@@ -30,20 +30,7 @@ The existing shadcn components live under `src/components/ui`. Add more with `bu
 
 ## Supabase Keep-Alive
 
-The repository includes a GitHub Actions workflow that runs a small database query twice daily to generate activity for Supabase Free Tier projects:
-
-[`/.github/workflows/supabase-keep-alive.yml`](.github/workflows/supabase-keep-alive.yml)
-
-Configure the required GitHub secret:
-
-1. Open the Supabase Dashboard and select your project.
-2. Open **Connect** and copy the **Session pooler** PostgreSQL connection string.
-3. In GitHub, open the repository **Settings → Secrets and variables → Actions**.
-4. Click **New repository secret**.
-5. Set the name to `SUPABASE_DATABASE_URL` and paste the complete connection string as the value.
-6. Commit and push this workflow to GitHub.
-
-No other secrets are required. To test it, open the repository’s **Actions** tab, select **Keep Supabase active**, and click **Run workflow**. The scheduled runs occur at 03:00 and 15:00 UTC.
+Optional GitHub Actions setup: [Supabase keep-alive](agents/knowledge/supabase-keep-alive.md).
 
 ## Commands
 

@@ -1,0 +1,65 @@
+# Git
+.git
+.gitignore
+.github
+
+# Dependencies
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Build outputs
+.next
+out
+dist
+build
+
+# Environment
+.env.*
+!.env.example
+
+# Testing
+coverage
+.nyc_output
+**/__tests__
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+e2e
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Documentation
+docs
+*.md
+agents/
+
+# CI/CD
+.gitlab-ci.yml
+.husky
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Scripts and tasks
+scripts
+_tasks
+hack
+
+# Misc
+.editorconfig
+biome.json
+components.json
+
+# Project specific
+deploy/
+mock/

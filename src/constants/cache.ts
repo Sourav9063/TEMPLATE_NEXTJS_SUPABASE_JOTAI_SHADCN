@@ -1,0 +1,1 @@
+export const GLOBAL_CACHE_TAG = "GLOBAL_CACHE";

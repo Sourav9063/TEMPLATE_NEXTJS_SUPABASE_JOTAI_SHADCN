@@ -44,6 +44,10 @@ Use SDD for non-trivial work. Read `agents/knowledge/` for architecture constrai
 - Multi-step work needs brief plan, explicit success checks, and narrow verification loop until done.
 - Continue until the request is satisfied or truly blocked. Assume every change will be rigorously scrutinized by a senior engineer; impress with sound judgment and clever solutions that improve DX without obscuring behavior.
 
+## Memory
+
+Read `agents/MEMORY.md` before non-trivial work. When a user makes a durable, cross-task repository decision, add one short, concrete instruction under its group heading before completing the task.
+
 ## Communication
 
 Respond like smart caveman: no greetings or filler. Keep technical substance exact: code, APIs, commands, and errors. Prefer `[thing] [action] [reason]`; fragments OK. Use fuller wording when compression risks ambiguity, safety, or irreversible-action clarity.

@@ -75,9 +75,17 @@ export default function Login({
   }
 
   return (
-    <AuthShell mode={mode}>
+    <AuthShell
+      mode={mode}
+      title={isSignup ? "Create your account" : "Welcome back"}
+      description={
+        googleEnabled
+          ? `${isSignup ? "Sign up" : "Sign in"} with Google to continue.`
+          : `Enter your email to receive a secure ${isSignup ? "sign-up" : "sign-in"} link and six-digit code.`
+      }
+    >
       {googleEnabled && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           <GoogleLogin
             onSuccess={signInWithGoogle}
             onError={() =>
@@ -86,33 +94,39 @@ export default function Login({
               )
             }
             useOneTap
-            shape="rectangular"
+            shape="pill"
             width="100%"
             text={isSignup ? "signup_with" : "signin_with"}
           />
           {!showEmailForm && (
-            <button
-              className="w-full text-center text-sm text-muted-foreground underline underline-offset-4"
+            <Button
+              className="h-10 w-full text-muted-foreground"
               type="button"
+              variant="ghost"
               onClick={() => setShowEmailForm(true)}
             >
-              Continue with email
-            </button>
+              Use email instead
+            </Button>
           )}
         </div>
       )}
       {showEmailForm && (
-        <form className="mt-6 space-y-5" onSubmit={sendCode} noValidate>
+        <form
+          className={googleEnabled ? "mt-5 space-y-4" : "space-y-4"}
+          onSubmit={sendCode}
+          noValidate
+        >
           {googleEnabled && (
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
               <div className="h-px flex-1 bg-border" />
-              <span>or</span>
+              <span>or use email</span>
               <div className="h-px flex-1 bg-border" />
             </div>
           )}
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input
+              className="h-10"
               id="email"
               name="email"
               type="email"
@@ -124,26 +138,32 @@ export default function Login({
               required
             />
           </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          <Button className="w-full" type="submit" disabled={isPending}>
+          {error && (
+            <p className="text-sm text-destructive" aria-live="polite">
+              {error}
+            </p>
+          )}
+          <Button className="h-10 w-full" type="submit" disabled={isPending}>
             {isPending
               ? "Sending…"
               : isSignup
-                ? "Continue with signup"
-                : "Continue with email"}
+                ? "Sign up with email"
+                : "Sign in with email"}
           </Button>
         </form>
       )}
       {!showEmailForm && error && (
-        <p className="mt-4 text-sm text-destructive">{error}</p>
+        <p className="mt-4 text-sm text-destructive" aria-live="polite">
+          {error}
+        </p>
       )}
-      <p className="mt-6 text-center text-sm text-muted-foreground">
-        {isSignup ? "Already have an account?" : "New user?"}{" "}
+      <p className="mt-6 border-t pt-6 text-center text-sm text-muted-foreground">
+        {isSignup ? "Already have an account?" : "New to App Template?"}{" "}
         <Link
-          className="font-medium text-foreground underline"
+          className="font-medium text-foreground underline underline-offset-4"
           href={`${isSignup ? "/login" : "/signup"}?redirect-url=${encodeURIComponent(redirectUrl)}`}
         >
-          {isSignup ? "Sign in" : "Sign up"}
+          {isSignup ? "Sign in" : "Create an account"}
         </Link>
       </p>
     </AuthShell>

@@ -2,8 +2,9 @@
 
 Use `createApiRequest` from `src/lib/utils/api-request.ts` as the shared HTTP
 transport for remote backends. It provides typed HTTP methods, JSON/FormData
-body handling, query serialization, Next fetch caching, and `AppError`
-normalization for failed responses.
+and binary body handling, query serialization, cancellation through
+`ApiRequestOptions.signal`, Next fetch caching, and `AppError` normalization
+for failed responses.
 
 ## Boundary
 
@@ -44,6 +45,27 @@ export const billingApi = createApiRequest({
   },
 });
 ```
+
+For cross-cutting client behavior, register Axios-style `request`, `response`,
+or `error` interceptors on the configured server-only client. Each interceptor
+must return its context so the next interceptor receives the transformed value.
+Keep backend-specific signing, metrics, and activity logging out of the generic
+request utility.
+
+```ts
+billingApi.interceptors.request.use((request) => {
+  request.headers.set("X-Client-Version", "1");
+  return request;
+});
+
+billingApi.interceptors.response.use(({ config, response }) => {
+  recordBackendResponse(config.url, response.status);
+  return { config, response };
+});
+```
+
+`use` returns an interceptor ID. Call `eject(id)` when a temporary interceptor
+must be removed. Use a wrapper only for behavior specific to one method or call.
 
 Define backend endpoints as constants or route builders. Encode dynamic path
 segments with `encodeURIComponent`; pass query parameters through the request
@@ -89,7 +111,8 @@ in their correct layers.
 ## Caching and errors
 
 `GET` requests receive the shared global tag and a URL-specific tag by
-default; mutations use `revalidate: 0`. Override `next` per request when a
+default; configured and per-request tags are added without replacing those
+defaults. Mutations use `revalidate: 0`. Override `next` per request when a
 backend endpoint needs a different TTL:
 
 ```ts

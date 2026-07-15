@@ -3,7 +3,13 @@ import { GLOBAL_CACHE_TAG } from "@/constants/cache";
 import { AppError } from "@/lib/utils/error";
 
 type RequestMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-export type RequestBody = Record<string, unknown> | FormData | string | null;
+export type RequestBody =
+  | Record<string, unknown>
+  | FormData
+  | Blob
+  | ArrayBuffer
+  | string
+  | null;
 
 export interface FetchOptions extends Omit<RequestInit, "body"> {
   body?: RequestBody;
@@ -18,6 +24,49 @@ export interface ApiRequestOptions extends FetchOptions {
 export interface ApiRequestDefaults
   extends Omit<ApiRequestOptions, "body" | "method"> {
   baseUrl?: string;
+}
+
+export interface ResolvedRequestConfig
+  extends Omit<RequestInit, "body" | "headers" | "method"> {
+  url: string;
+  method: string;
+  headers: Headers;
+  body?: BodyInit | null;
+}
+
+export interface ApiResponseContext {
+  config: ResolvedRequestConfig;
+  response: Response;
+}
+
+export interface ApiErrorContext {
+  config: ResolvedRequestConfig;
+  error: unknown;
+  response?: Response;
+}
+
+type Interceptor<T> = (value: T) => T | Promise<T>;
+
+export interface InterceptorManager<T> {
+  use(interceptor: Interceptor<T>): number;
+  eject(id: number): void;
+}
+
+interface InternalInterceptorManager<T> extends InterceptorManager<T> {
+  hasInterceptors(): boolean;
+  run(value: T): Promise<T>;
+}
+
+interface ApiRequestInterceptors {
+  request: InternalInterceptorManager<ResolvedRequestConfig>;
+  response: InternalInterceptorManager<ApiResponseContext>;
+  error: InternalInterceptorManager<ApiErrorContext>;
+}
+
+interface PublicApiRequestInterceptors {
+  request: InterceptorManager<ResolvedRequestConfig>;
+  response: InterceptorManager<ApiResponseContext>;
+  error: InterceptorManager<ApiErrorContext>;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -83,9 +132,21 @@ const prepareBody = (
   body: RequestBody | undefined,
   headers: Headers,
 ): BodyInit | null | undefined => {
-  if (body === null || body === undefined) return body;
+  if (body === null || body === undefined) return undefined;
 
-  if (body instanceof FormData) return body;
+  if (body instanceof FormData) {
+    headers.delete("Content-Type");
+    return body;
+  }
+
+  if (body instanceof Blob) {
+    if (body.type && !headers.has("Content-Type")) {
+      headers.set("Content-Type", body.type);
+    }
+    return body;
+  }
+
+  if (body instanceof ArrayBuffer) return body;
 
   if (typeof body === "object") {
     if (!headers.has("Content-Type")) {
@@ -106,14 +167,62 @@ const getNextConfig = (
     method.toUpperCase(),
   );
   const requestUrl = new URL(url, config.APP_URL);
-  const defaultNextConfig = isMutation
-    ? { revalidate: 0 }
-    : {
-        revalidate: 5 * 60,
-        tags: [GLOBAL_CACHE_TAG, `${requestUrl.pathname}${requestUrl.search}`],
-      };
+  if (isMutation) {
+    return { revalidate: 0, ...customNext };
+  }
 
-  return { ...defaultNextConfig, ...customNext };
+  const defaultTags = [
+    GLOBAL_CACHE_TAG,
+    `${requestUrl.pathname}${requestUrl.search}`,
+  ];
+
+  return {
+    revalidate: 5 * 60,
+    ...customNext,
+    tags: [...new Set([...defaultTags, ...(customNext.tags ?? [])])],
+  };
+};
+
+const mergeNextConfig = (
+  defaultNext?: NextFetchRequestConfig,
+  requestNext?: NextFetchRequestConfig,
+): NextFetchRequestConfig => {
+  const tags = [...(defaultNext?.tags ?? []), ...(requestNext?.tags ?? [])];
+
+  return {
+    ...defaultNext,
+    ...requestNext,
+    ...(tags.length > 0 ? { tags: [...new Set(tags)] } : {}),
+  };
+};
+
+const createInterceptorManager = <T>(): InternalInterceptorManager<T> => {
+  const interceptors = new Map<number, Interceptor<T>>();
+  let nextId = 0;
+
+  return {
+    use(interceptor) {
+      const id = nextId;
+      nextId += 1;
+      interceptors.set(id, interceptor);
+      return id;
+    },
+    eject(id) {
+      interceptors.delete(id);
+    },
+    hasInterceptors() {
+      return interceptors.size > 0;
+    },
+    async run(initialValue) {
+      let value = initialValue;
+
+      for (const interceptor of interceptors.values()) {
+        value = await interceptor(value);
+      }
+
+      return value;
+    },
+  };
 };
 
 const handleResponse = async <T>(response: Response): Promise<T> => {
@@ -140,9 +249,10 @@ const handleResponse = async <T>(response: Response): Promise<T> => {
     : ((await response.text()) as T);
 };
 
-export const fetcher = async <T = unknown>(
+const executeRequest = async <T = unknown>(
   url: string,
   options: FetchOptions = {},
+  interceptors?: ApiRequestInterceptors,
 ): Promise<T> => {
   const {
     body,
@@ -152,17 +262,58 @@ export const fetcher = async <T = unknown>(
     ...restOptions
   } = options;
   const headers = prepareHeaders(headersInit);
-
-  const response = await fetch(url, {
+  const requestBody = prepareBody(body, headers);
+  let requestConfig: ResolvedRequestConfig = {
+    url,
     method,
     headers,
-    body: prepareBody(body, headers),
-    next: getNextConfig(method, url, next),
+    body: requestBody,
+    next,
     ...restOptions,
-  });
+  };
+  let errorResponse: Response | undefined;
 
-  return handleResponse<T>(response);
+  try {
+    if (interceptors) {
+      requestConfig = await interceptors.request.run(requestConfig);
+    }
+
+    requestConfig.next = getNextConfig(
+      requestConfig.method,
+      requestConfig.url,
+      requestConfig.next,
+    );
+
+    const { url: requestUrl, ...requestOptions } = requestConfig;
+    const response = await fetch(requestUrl, requestOptions);
+    let responseContext = { config: requestConfig, response };
+
+    if (interceptors) {
+      responseContext = await interceptors.response.run(responseContext);
+    }
+
+    if (interceptors?.error.hasInterceptors()) {
+      errorResponse = responseContext.response.clone();
+    }
+
+    return await handleResponse<T>(responseContext.response);
+  } catch (error) {
+    if (interceptors) {
+      await interceptors.error.run({
+        config: requestConfig,
+        error,
+        response: errorResponse,
+      });
+    }
+
+    throw error;
+  }
 };
+
+export const fetcher = <T = unknown>(
+  url: string,
+  options: FetchOptions = {},
+): Promise<T> => executeRequest<T>(url, options);
 
 export const createApiRequest = ({
   baseUrl,
@@ -171,6 +322,13 @@ export const createApiRequest = ({
   query: defaultQuery,
   ...defaultOptions
 }: ApiRequestDefaults = {}) => {
+  const interceptors: ApiRequestInterceptors = {
+    request: createInterceptorManager<ResolvedRequestConfig>(),
+    response: createInterceptorManager<ApiResponseContext>(),
+    error: createInterceptorManager<ApiErrorContext>(),
+  };
+  const publicInterceptors: PublicApiRequestInterceptors = interceptors;
+
   const resolveUrl = (
     url: string,
     requestQuery?: Record<string, QueryValue>,
@@ -210,17 +368,22 @@ export const createApiRequest = ({
       headers.set(key, value);
     });
 
-    return fetcher<T>(resolveUrl(url, query), {
-      ...defaultOptions,
-      ...requestOptions,
-      headers,
-      next: { ...defaultNext, ...requestNext },
-      method,
-      body,
-    });
+    return executeRequest<T>(
+      resolveUrl(url, query),
+      {
+        ...defaultOptions,
+        ...requestOptions,
+        headers,
+        next: mergeNextConfig(defaultNext, requestNext),
+        method,
+        body,
+      },
+      interceptors,
+    );
   };
 
   return {
+    interceptors: publicInterceptors,
     GET: <T = unknown>(url: string, options?: ApiRequestOptions) =>
       request<T>("GET", url, undefined, options),
     POST: <T = unknown>(

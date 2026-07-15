@@ -9,3 +9,7 @@
 # API Client
 
 - Extend shared API clients through request, response, and error interceptors; register backend-specific behavior on the configured server-only client.
+
+# Toolchain
+
+- Keep TypeScript on 6.x until the Next.js Webpack build resolves `@/*` aliases correctly with TypeScript 7.

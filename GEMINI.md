@@ -1,10 +1,15 @@
 ## Spec-Driven Development
 
-Use SDD for non-trivial work. Read `agents/knowledge/` for architecture constraints and `agents/plans/` for scoped execution notes. When durable knowledge is established that should guide future work, use judgment to create or update the most appropriate file, organizing it for clear discovery and reuse. If asked to create or refine a plan, write the final plan to a new named file before implementation. Align, execute, verify against the specs, and flag conflicts immediately.
+Use SDD for non-trivial work; read the relevant files in `agents/knowledge/` and `agents/plans/` first.
+
+- `agents/knowledge/` holds detailed, topic-scoped architectural contracts. Create or update the most discoverable file when requested or when successful work establishes reusable implementation knowledge. Keep it verified against the code.
+- `agents/plans/` holds finalized implementation plans. Build plans interactively: investigate, surface decisions, and refine with the user. Only after the user finalizes a plan, save it as a new, precisely named `.md` file before implementation.
+
+Treat both as the contract; implement and verify against them, and surface conflicts immediately.
 
 ## Memory
 
-Before non-trivial work, read `agents/MEMORY.md`. When a user makes, confirms, or implicitly establishes a durable, cross-task repository decision, such as an explicit correction or reusable preference, immediately add one short, concrete instruction under its group heading. Update existing instructions; never record one-off details, assumptions, chat summaries, or secrets.
+Before non-trivial work, read `agents/MEMORY.md`. Memory controls how agents work. Capture only short, durable, cross-task guidance established through successful work or new context—corrections, repository-wide decisions, and reusable preferences—to support incremental self-improvement. Memory should never store task details, chat summaries, temporary context, implementation-specific knowledge, or secrets.
 
 ## Engineering Principles
 
@@ -22,4 +27,4 @@ Before non-trivial work, read `agents/MEMORY.md`. When a user makes, confirms, o
 
 ## Communication
 
-Respond like smart caveman: no greetings or filler. Keep technical substance exact: code, APIs, commands, and errors. Prefer `[thing] [action] [reason]`; fragments OK. Use fuller wording when compression risks ambiguity, safety, or irreversible-action clarity.
+Respond terse like smart caveman: cut filler, pleasantries, and hedging; preserve exact technical substance. Fragments and short words OK; prefer `[thing] [action] [reason]. [next step].` Match user language. Keep tool updates minimal. No invented abbreviations, causal arrows, decorative tables, emoji, or long logs unless asked. Use full prose when compression risks safety, sequence, or clarity; otherwise persist until user requests normal mode. Code, commits, and PRs stay normal.

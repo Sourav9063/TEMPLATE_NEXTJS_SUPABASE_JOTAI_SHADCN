@@ -69,6 +69,23 @@ interface PublicApiRequestInterceptors {
   error: InterceptorManager<ApiErrorContext>;
 }
 
+const MAX_CACHE_TAG_LENGTH = 256;
+const HASHED_CACHE_TAG_PREFIX = "request:";
+
+const getRequestTag = async (requestTag: string): Promise<string> => {
+  if (requestTag.length <= MAX_CACHE_TAG_LENGTH) return requestTag;
+
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(requestTag),
+  );
+  const hash = Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+
+  return `${HASHED_CACHE_TAG_PREFIX}${hash}`;
+};
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
@@ -158,23 +175,21 @@ const prepareBody = (
   return body;
 };
 
-const getNextConfig = (
+const getNextConfig = async (
   method: string,
   url: string,
   customNext: NextFetchRequestConfig = {},
-): NextFetchRequestConfig => {
+): Promise<NextFetchRequestConfig> => {
   const isMutation = ["POST", "PUT", "PATCH", "DELETE"].includes(
     method.toUpperCase(),
   );
-  const requestUrl = new URL(url, config.APP_URL);
   if (isMutation) {
     return { revalidate: 0, ...customNext };
   }
 
-  const defaultTags = [
-    GLOBAL_CACHE_TAG,
-    `${requestUrl.pathname}${requestUrl.search}`,
-  ];
+  const requestUrl = new URL(url, config.APP_URL);
+  const requestTag = `${requestUrl.pathname}${requestUrl.search}`;
+  const defaultTags = [GLOBAL_CACHE_TAG, await getRequestTag(requestTag)];
 
   return {
     revalidate: 5 * 60,
@@ -278,7 +293,7 @@ const executeRequest = async <T = unknown>(
       requestConfig = await interceptors.request.run(requestConfig);
     }
 
-    requestConfig.next = getNextConfig(
+    requestConfig.next = await getNextConfig(
       requestConfig.method,
       requestConfig.url,
       requestConfig.next,

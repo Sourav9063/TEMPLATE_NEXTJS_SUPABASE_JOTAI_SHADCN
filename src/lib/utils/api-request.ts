@@ -1,6 +1,6 @@
 import { config } from "@/config";
 import { GLOBAL_CACHE_TAG } from "@/constants/cache";
-import { AppError } from "@/lib/utils/error";
+import { AppError, normalizeActionError } from "@/lib/utils/error";
 
 type RequestMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 export type RequestBody =
@@ -86,52 +86,20 @@ const getRequestTag = async (requestTag: string): Promise<string> => {
   return `${HASHED_CACHE_TAG_PREFIX}${hash}`;
 };
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
-
-const getMessages = (value: unknown): string[] | undefined => {
-  if (
-    !Array.isArray(value) ||
-    value.some((message) => typeof message !== "string")
-  ) {
-    return undefined;
-  }
-
-  return value as string[];
-};
-
-const getFields = (value: unknown): Record<string, string[]> | undefined => {
-  if (!isRecord(value)) return undefined;
-
-  const fields: Record<string, string[]> = {};
-  for (const [field, fieldValue] of Object.entries(value)) {
-    const messages = getMessages(fieldValue);
-    if (!messages) return undefined;
-    fields[field] = messages;
-  }
-
-  return fields;
-};
-
 const getError = (payload: unknown, response: Response): AppError => {
-  const error =
-    isRecord(payload) && isRecord(payload.error) ? payload.error : payload;
-  const details = isRecord(error) ? error : {};
-  const statusCode =
-    typeof details.statusCode === "number"
-      ? details.statusCode
-      : response.status;
-  const message =
-    typeof details.message === "string" ? details.message : response.statusText;
+  const error = normalizeActionError({
+    status: response.status,
+    statusText: response.statusText,
+    payload,
+  });
 
-  return new AppError(statusCode, message, {
-    code: typeof details.code === "string" ? details.code : undefined,
-    field: typeof details.field === "string" ? details.field : undefined,
-    fields: getFields(details.fields),
-    details: details.details,
+  return new AppError(error.statusCode ?? response.status, error.message, {
+    code: error.code,
+    field: error.field,
+    fields: error.fields,
+    details: error.details,
     source: "api",
-    requestId:
-      typeof details.requestId === "string" ? details.requestId : undefined,
+    requestId: error.requestId,
   });
 };
 

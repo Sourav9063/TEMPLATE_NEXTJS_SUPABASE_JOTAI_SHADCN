@@ -112,8 +112,9 @@ in their correct layers.
 
 `GET` requests receive the shared global tag and a URL-specific tag by
 default; configured and per-request tags are added without replacing those
-defaults. Mutations use `revalidate: 0`. Override `next` per request when a
-backend endpoint needs a different TTL:
+defaults. Long URL tags are SHA-256 hashed to stay within Next.js tag limits.
+Mutations use `revalidate: 0`. Override `next` per request when a backend
+endpoint needs a different TTL:
 
 ```ts
 await billingApi.GET<CurrencyList>(billingApiRoutes.CURRENCIES, {
@@ -127,9 +128,10 @@ clear cache from a reload effect, ordinary navigation, or a layout mount. Use
 the global tag only when one write genuinely affects unrelated read surfaces.
 
 Failed remote responses become `AppError` with API status, code, fields,
-details, and request ID when supplied. Preserve that structured error through
-services and transport boundaries; only remap fields when a local form needs
-a different field path.
+details, and request ID when supplied. `normalizeActionError` also accepts
+common nested, stringified, and validation-error payloads. Preserve that
+structured error through services and transport boundaries; only remap fields
+when a local form needs a different field path.
 
 ## Public backends
 

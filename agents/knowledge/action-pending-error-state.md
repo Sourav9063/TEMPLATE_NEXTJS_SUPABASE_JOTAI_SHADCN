@@ -1,4 +1,4 @@
-# Server Action Pending And Error State
+# Action Pending And Error State
 
 When multiple client mutations need the same lifecycle behavior, centralize it
 in a typed action runner backed by Jotai. The runner owns pending state,
@@ -6,7 +6,7 @@ request identity, error normalization, and optional toast/progress behavior.
 Do not create feature-specific pending/error atoms when the shared runner can
 own the state.
 
-Recommended sources of truth:
+Shared mutation state lives in:
 
 - `src/constants/action-keys.ts`: typed keys and scoped key factories.
 - `src/stores/action-state-store.ts`: one state record per key.
@@ -15,7 +15,8 @@ Recommended sources of truth:
 - `src/types/action-state.ts`: shared types.
 
 Use constants, never raw strings in components. Scope repeated actions by
-record ID so one row cannot display another row's state.
+record ID so one row cannot display another row's state. `clearActionScopeAtom`
+can remove all state for a feature prefix during teardown.
 
 ```tsx
 const createRunner = useActionRunner(actionKeys.itemCreate, createItem);
@@ -52,6 +53,11 @@ const nameError = createRunner.fields.name?.[0];
 {nameError && <p className="text-sm text-destructive">{nameError}</p>}
 ```
 
-Default toast policy: field errors inline only; request-level, network, and
-unknown errors as toast. Keep synchronous/client-only validation and login
-errors local when no asynchronous action ran.
+Errors support message, HTTP status, code, one field, field maps, details,
+source, and request ID. The runner shows error toasts by default; set
+`toastError: false` or provide a predicate when inline-only feedback is better.
+Keep synchronous/client-only validation and login errors local when no
+asynchronous action ran.
+
+Legacy `useActionState()` form adapters may map `error.message` and
+`error.fields` back to their string form-state shape at the boundary.

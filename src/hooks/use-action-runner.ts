@@ -23,6 +23,16 @@ type UseActionRunnerOptions<TData> = {
   useTopLoader?: boolean;
 };
 
+function shouldToastError(
+  error: ActionError,
+  toastError: UseActionRunnerOptions<unknown>["toastError"],
+) {
+  if (typeof toastError === "function") return toastError(error);
+  if (typeof toastError === "boolean") return toastError;
+
+  return true;
+}
+
 export function useActionRunner<TArgs extends unknown[], TData>(
   key: ActionKey,
   action: (...args: TArgs) => Promise<ActionResult<TData>>,
@@ -42,23 +52,34 @@ export function useActionRunner<TArgs extends unknown[], TData>(
     startTransition(() => clearActionError(key));
   }, [clearActionError, key]);
 
-  useEffect(() => () => clearActionError(key), [clearActionError, key]);
+  useEffect(
+    () => () => {
+      clearActionError(key);
+    },
+    [clearActionError, key],
+  );
 
   const run = useCallback(
     async (...args: TArgs): Promise<ActionResult<TData>> => {
-      const requestId = ++requestIdRef.current;
+      const requestId = requestIdRef.current + 1;
+      requestIdRef.current = requestId;
+
       if (options.useTopLoader !== false) topLoader.start();
       startTransition(() => startAction({ key, requestId }));
 
       try {
         const result = await action(...args);
+
         if (!result.success) {
           const error = normalizeActionError(result.error);
           startTransition(() => rejectAction({ key, requestId, error }));
           options.onError?.(error);
-          if (options.toastError !== false) toast.error(error.message);
+          if (shouldToastError(error, options.toastError)) {
+            toast.error(error.message);
+          }
           return { success: false, error };
         }
+
         startTransition(() => resolveAction({ key, requestId }));
         options.onSuccess?.(result.data);
         return result;
@@ -68,7 +89,9 @@ export function useActionRunner<TArgs extends unknown[], TData>(
           rejectAction({ key, requestId, error: normalizedError }),
         );
         options.onError?.(normalizedError);
-        if (options.toastError !== false) toast.error(normalizedError.message);
+        if (shouldToastError(normalizedError, options.toastError)) {
+          toast.error(normalizedError.message);
+        }
         return { success: false, error: normalizedError };
       } finally {
         if (options.useTopLoader !== false) topLoader.done();

@@ -6,6 +6,12 @@ export function CustomToaster() {
   return (
     <>
       <style>{`
+        [data-sonner-toast][data-type=success][data-styled=true] {
+          background: rgb(240 253 244) !important;
+          color: rgb(22 163 74) !important;
+          border-color: rgb(187 247 208) !important;
+        }
+
         [data-sonner-toast][data-type=error][data-styled=true] {
           background: rgb(254 242 242) !important;
           color: rgb(220 38 38) !important;
